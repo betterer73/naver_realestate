@@ -48,13 +48,13 @@ def fetch_real_estate_data(referer):
     }
 
     all_data = []
-    for page in range(1, 11):  # fetch up to 10 pages
-        url = f'https://new.land.naver.com/api/articles/complex/{complex_no}?realEstateType=APT%3AABYG%3AJGC%3APRE&tradeType=&tag=%3A%3A%3A%3A%3A%3A%3A%3A&rentPriceMin=0&rentPriceMax=900000000&priceMin=0&priceMax=900000000&areaMin=0&areaMax=900000000&oldBuildYears&recentlyBuildYears&minHouseHoldCount&maxHouseHoldCount&showArticle=false&sameAddressGroup=false&minMaintenanceCost&maxMaintenanceCost&priceType=RETAIL&directions=&page={page}&complexNo={complex_no}&buildingNos=&areaNos=&type=list&order=rank'
+    for page in range(1, 11):  # 최대 10페이지까지 데이터 가져오기
+        url = f'https://new.land.naver.com/api/articles/complex/{complex_no}?realEstateType=APT%3AABYG%3AJGC%3APRE&tradeType=&page={page}&complexNo={complex_no}'
         response = requests.get(url, cookies=cookies, headers=headers)
         if response.status_code == 200:
             data = response.json()
             for article in data.get('articleList', []):
-                all_data.append([ 
+                all_data.append([
                     article.get("articleConfirmYmd"),
                     article.get("articleName"),
                     article.get("realEstateTypeName"),
@@ -70,7 +70,7 @@ def fetch_real_estate_data(referer):
                     article.get("realtorName")
                 ])
         else:
-            st.error(f"Failed to fetch data for page {page}")
+            st.error(f"Failed to fetch data for page {page} with status code {response.status_code}")
     return all_data
 
 # Streamlit 앱 생성
@@ -80,27 +80,70 @@ def create_streamlit_app():
     # 사용자로부터 referer URL 입력받기
     referer = st.text_input("Enter the referer URL:", placeholder="https://new.land.naver.com/complexes/6142?ms=...")
 
+    # 필터링 옵션들
+    trade_type = st.selectbox("Select Trade Type", ["전체", "매매", "전세", "월세"])
+    급매_check = st.checkbox("급매")
+    로얄_check = st.checkbox("로얄")
+    min_price_check = st.checkbox("최저가")
+    max_price_check = st.checkbox("최고가")
+
+    # 버튼을 클릭하여 데이터 가져오기
     if st.button('Fetch Data'):
         if referer:
             data = fetch_real_estate_data(referer)
 
-            # Display the data in a table using pandas
+            # 필터링 - 사용자가 선택한 옵션에 따라 데이터 필터링
             if data:
-                df = pd.DataFrame(data, columns=[ 
-                    "확인날짜", "물건명", "물건형태", "거래형태", "물건동수", "층정보", 
-                    "호가", "단지내 이름", "공급면적", "전용면적", "방위", "부가정보", "부동산명"
-                ])
-                st.dataframe(df)
+                # 거래형태 필터링
+                if trade_type != "전체":
+                    data = [row for row in data if row[3] == trade_type]
 
-                # Allow the user to download the data as an Excel file
-                # Create a BytesIO object to store the Excel file in memory
-                excel_file = BytesIO()
-                df.to_excel(excel_file, index=False, engine='openpyxl')
-                excel_file.seek(0)  # Go back to the beginning of the file
+                # 급매 체크박스 필터링
+                if 급매_check:
+                    data = [row for row in data if row[11] and '급매' in row[11]]
 
-                # Provide the download button
-                st.download_button(label="Download as Excel", data=excel_file, file_name="real_estate_data.xlsx")
+                # 로얄 체크박스 필터링
+                if 로얄_check:
+                    data = [row for row in data if row[11] and '로얄' in row[11]]
 
+                # 가격 데이터 필터링
+                valid_prices = []
+                for row in data:
+                    try:
+                        # 가격 데이터를 정수로 변환
+                        price_str = re.sub(r'[^\d]', '', row[6])  # 숫자 이외의 문자 제거
+                        price = int(price_str)
+                        valid_prices.append((price, row))
+                    except (ValueError, AttributeError):
+                        continue  # 잘못된 가격 데이터는 건너뜀
+
+                # 최저가/최고가 필터링
+                if valid_prices:
+                    if min_price_check:
+                        min_price = min(valid_prices, key=lambda x: x[0])[0]
+                        valid_prices = [entry for entry in valid_prices if entry[0] == min_price]
+                    if max_price_check:
+                        max_price = max(valid_prices, key=lambda x: x[0])[0]
+                        valid_prices = [entry for entry in valid_prices if entry[0] == max_price]
+
+                    # 필터링된 데이터만 가져오기
+                    data = [row for _, row in valid_prices]
+
+                # 필터링된 데이터가 있을 경우 보여주기
+                if data:
+                    df = pd.DataFrame(data, columns=[
+                        "확인날짜", "물건명", "물건형태", "거래형태", "물건동수", "층정보", 
+                        "호가", "단지내 이름", "공급면적", "전용면적", "방위", "부가정보", "부동산명"
+                    ])
+                    st.dataframe(df)
+
+                    # 다운로드 버튼
+                    excel_file = BytesIO()
+                    df.to_excel(excel_file, index=False, engine='openpyxl')
+                    excel_file.seek(0)
+                    st.download_button(label="Download as Excel", data=excel_file, file_name="real_estate_data.xlsx")
+                else:
+                    st.warning("No data found for the selected options.")
             else:
                 st.warning("No data found.")
         else:
