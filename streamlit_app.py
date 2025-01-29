@@ -173,8 +173,10 @@ def create_streamlit_app():
 
 
     # 리치고 열기
-    if st.button("Open the Richgo in Chrome"):
-        webbrowser.open(f'https://m.richgo.ai/pc')
+    # if st.button("Open the Richgo in Chrome"):
+    #    webbrowser.open(f'https://m.richgo.ai/pc')
+    st.markdown("[Open the Richgo in Chrome](https://m.richgo.ai/pc)", unsafe_allow_html=True)
+
 
 if __name__ == "__main__":
     create_streamlit_app()
