@@ -85,7 +85,7 @@ def fetch_real_estate_data(referer, trade_type):
 
 # Streamlit 앱 생성
 def create_streamlit_app():
-    st.title('Real Estate Data Fetcher')
+    st.title('Real Estate Data Fetcher Powered by Betterer')
 
     # 1. Enter the referer URL
     referer = st.text_input("Enter the Naver Realestate referer URL:", placeholder="https://new.land.naver.com/complexes/6142?ms=...")
